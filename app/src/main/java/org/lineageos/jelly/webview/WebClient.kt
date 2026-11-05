@@ -6,9 +6,11 @@
 package org.lineageos.jelly.webview
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -20,6 +22,7 @@ import android.net.http.SslError
 import android.os.Build
 import android.text.TextUtils
 import android.view.LayoutInflater
+import android.view.View
 import android.webkit.HttpAuthHandler
 import android.webkit.SslErrorHandler
 import android.webkit.WebResourceRequest
@@ -28,6 +31,7 @@ import android.webkit.WebViewClient
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import com.google.android.material.snackbar.Snackbar
 import org.lineageos.jelly.R
@@ -38,6 +42,7 @@ import org.lineageos.jelly.js.JsSyncUrl
 import org.lineageos.jelly.ui.UrlBarLayout
 import org.lineageos.jelly.utils.AssetLoader
 import org.lineageos.jelly.utils.IntentUtils
+import org.lineageos.jelly.utils.SharedPreferencesExt
 import org.lineageos.jelly.utils.UrlUtils
 import java.net.URISyntaxException
 
@@ -45,6 +50,10 @@ internal class WebClient(
     private val context: Context,
     private val urlBarLayout: UrlBarLayout,
 ) : WebViewClient() {
+    private val sharedPreferencesExt by lazy { SharedPreferencesExt(context) }
+    private var externalAppDialog: AlertDialog? = null
+    private var lastCheckedUrl: String? = null
+
     private val scripts by lazy {
         val mediaSessionAPI = AssetLoader.loadAsset(
             context.resources,
@@ -59,6 +68,10 @@ internal class WebClient(
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
+        // Form submissions skip shouldOverrideUrlLoading, but logins often redirect by script next
+        if (url != lastCheckedUrl) {
+            (view as? WebViewExt)?.markUserNavigation()
+        }
         urlBarLayout.onPageLoadStarted(url)
         if (view.settings.javaScriptEnabled) {
             view.evaluateJavascript(scripts, null)
@@ -80,23 +93,110 @@ internal class WebClient(
     }
 
     override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-        if (request.isForMainFrame) {
-            val webViewExt = view as WebViewExt
-            val url = request.url.toString()
-            val needsLookup = (request.hasGesture()
-                    || !TextUtils.equals(url, webViewExt.lastLoadedUrl))
-            if (!webViewExt.isIncognito
-                && needsLookup
-                && startActivityForUrl(view, url)
-                && !request.isRedirect
-            ) {
-                return true
-            } else if (webViewExt.requestHeaders.isNotEmpty()) {
-                webViewExt.followUrl(url)
-                return true
+        if (!request.isForMainFrame) {
+            return false
+        }
+
+        val webViewExt = view as WebViewExt
+        val url = request.url.toString()
+        val settings = sharedPreferencesExt.navigationGuardSettings
+        val navigation = NavigationGuard.Navigation(
+            url = url,
+            currentUrl = view.url,
+            hasGesture = request.hasGesture(),
+            isRedirect = request.isRedirect,
+            // A redirect's target is expected to differ from what the link pointed to
+            tappedLink = webViewExt.lastTouchWasOnLink(url.takeUnless { request.isRedirect }),
+            recentUserNavigation = webViewExt.hasRecentUserNavigation,
+        )
+        lastCheckedUrl = url
+        if (navigation.isLinkTap || request.isRedirect) {
+            webViewExt.markUserNavigation()
+        }
+
+        val needsLookup = (request.hasGesture()
+                || !TextUtils.equals(url, webViewExt.lastLoadedUrl))
+        val intent = if (!webViewExt.isIncognito && needsLookup) {
+            resolveExternalIntent(view.context, url)
+        } else {
+            null
+        }
+
+        if (NavigationGuard.isAppScheme(url)) {
+            // The page can't render these, so keep it from being replaced by an error page
+            intent ?: return settings.blockUrlSchemes
+            when (NavigationGuard.appSchemeAction(settings, navigation)) {
+                NavigationGuard.AppAction.BLOCK -> showBlockedAppSnackbar(view, intent)
+                NavigationGuard.AppAction.CONFIRM -> confirmExternalApp(view, intent)
+                else -> return startExternalActivity(view, intent) || settings.blockUrlSchemes
+            }
+            return true
+        }
+
+        if (intent != null) {
+            when (NavigationGuard.appLinkAction(settings, navigation)) {
+                NavigationGuard.AppAction.CONFIRM -> {
+                    confirmExternalApp(view, intent) { webViewExt.loadUrl(url) }
+                    return true
+                }
+
+                NavigationGuard.AppAction.LAUNCH -> {
+                    if (startExternalActivity(view, intent) && !request.isRedirect) {
+                        return true
+                    }
+                }
+
+                else -> Unit
             }
         }
+
+        if (NavigationGuard.isBlockedRedirect(settings, navigation)) {
+            showBlockedSnackbar(view, R.string.navigation_guard_redirect_blocked) {
+                webViewExt.loadUrl(url)
+            }
+            return true
+        }
+
+        if (webViewExt.requestHeaders.isNotEmpty()) {
+            webViewExt.followUrl(url)
+            return true
+        }
         return false
+    }
+
+    private fun confirmExternalApp(view: WebView, intent: Intent, onStay: () -> Unit = {}) {
+        val activity = hostActivity(view)
+        if (activity == null) {
+            onStay()
+            return
+        }
+        // A page firing several navigations in a row shouldn't stack dialogs
+        if (externalAppDialog?.isShowing == true) {
+            return
+        }
+        val site = view.url?.let { Uri.parse(it).host } ?: context.getString(R.string.app_name)
+        externalAppDialog = AlertDialog.Builder(activity)
+            .setTitle(R.string.external_app_dialog_title)
+            .setMessage(context.getString(R.string.external_app_dialog_message, site))
+            .setPositiveButton(R.string.external_app_dialog_open) { _, _ ->
+                startExternalActivity(view, intent)
+            }
+            .setNegativeButton(R.string.external_app_dialog_stay) { _, _ -> onStay() }
+            .setOnCancelListener { onStay() }
+            .show()
+    }
+
+    private fun showBlockedAppSnackbar(view: WebView, intent: Intent) =
+        showBlockedSnackbar(view, R.string.navigation_guard_app_blocked) {
+            startExternalActivity(view, intent)
+        }
+
+    private fun showBlockedSnackbar(view: WebView, @StringRes message: Int, onAllow: () -> Unit) {
+        // Background shortcuts keep running while detached from any window
+        if (!view.isAttachedToWindow) return
+        Snackbar.make(view, message, Snackbar.LENGTH_LONG)
+            .setAction(R.string.navigation_guard_allow) { onAllow() }
+            .show()
     }
 
     override fun onReceivedHttpAuthRequest(
@@ -128,12 +228,11 @@ internal class WebClient(
             .show()
     }
 
-    private fun startActivityForUrl(view: WebView, url: String): Boolean {
-        val context = view.context
+    private fun resolveExternalIntent(context: Context, url: String): Intent? {
         var intent = try {
             Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
         } catch (ex: URISyntaxException) {
-            return false
+            return null
         }
         intent.addCategory(Intent.CATEGORY_BROWSABLE)
         intent.component = null
@@ -141,7 +240,7 @@ internal class WebClient(
         val m = UrlUtils.ACCEPTED_URI_SCHEMA.matcher(url)
         if (m.matches()) {
             // If there only are browsers for this URL, handle it ourselves
-            intent = makeHandlerChooserIntent(context, intent, url) ?: return false
+            return makeHandlerChooserIntent(context, intent, url)
         } else {
             val packageName = intent.getPackage()
             val resolveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -156,6 +255,30 @@ internal class WebClient(
                     .addCategory(Intent.CATEGORY_BROWSABLE)
             }
         }
+        return intent
+    }
+
+    /**
+     * The activity currently showing this WebView. Background shortcut WebViews are created by a
+     * service and outlive activities, so neither their own context nor [context] can be used.
+     */
+    private fun hostActivity(view: WebView): Activity? {
+        var current = (view.parent as? View)?.context
+        while (current is ContextWrapper) {
+            if (current is Activity) {
+                return current.takeUnless { it.isFinishing || it.isDestroyed }
+            }
+            current = current.baseContext
+        }
+        return null
+    }
+
+    private fun startExternalActivity(view: WebView, intent: Intent): Boolean {
+        val activity = hostActivity(view)
+        if (activity == null) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val context = activity ?: view.context
         try {
             context.startActivity(intent)
             return true

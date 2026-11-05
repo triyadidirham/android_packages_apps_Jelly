@@ -80,6 +80,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
+    testImplementation(libs.junit)
 }
 
 configure<GenerateBpPluginExtension> {
