@@ -18,6 +18,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import com.google.android.material.snackbar.Snackbar
 import org.lineageos.jelly.R
 import org.lineageos.jelly.js.JsManifest
 import org.lineageos.jelly.ui.UrlBarLayout
@@ -140,7 +141,12 @@ internal class ChromeClient(
         view: WebView, isDialog: Boolean,
         isUserGesture: Boolean, resultMsg: Message
     ): Boolean {
-        if (!sharedPreferencesExt.dynamicPopupEnabled && !isUserGesture) {
+        val settings = sharedPreferencesExt.navigationGuardSettings
+        val webViewExt = view as WebViewExt
+        val initialAction = NavigationGuard.popupAction(
+            settings, isUserGesture, webViewExt.lastTouchWasOnLink()
+        )
+        if (initialAction == NavigationGuard.PopupAction.REJECT) {
             return false
         }
 
@@ -148,9 +154,25 @@ internal class ChromeClient(
         val tempWebView = WebView(view.context)
 
         tempWebView.webViewClient = object : WebViewClient() {
+            private var handled = false
+
             override fun onLoadResource(view: WebView, url: String) {
+                if (handled) return
+                handled = true
                 tempWebView.destroy()
-                openInNewTab(activity, url, incognito)
+                // The target is only known now, so catch scripts opening an ad from a link tap
+                val action = NavigationGuard.popupAction(
+                    settings, isUserGesture, webViewExt.lastTouchWasOnLink(url)
+                )
+                if (action == NavigationGuard.PopupAction.OPEN) {
+                    openInNewTab(activity, url, incognito)
+                } else if (webViewExt.isAttachedToWindow) {
+                    Snackbar.make(
+                        webViewExt, R.string.navigation_guard_popup_blocked, Snackbar.LENGTH_LONG
+                    ).setAction(R.string.navigation_guard_allow) {
+                        openInNewTab(activity, url, incognito)
+                    }.show()
+                }
             }
         }
 

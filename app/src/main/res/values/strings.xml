@@ -109,6 +109,38 @@
     <string name="pref_dynamic_popup_title">Dynamic popups</string>
     <!-- Settings: dynamic popup summary -->
     <string name="pref_dynamic_popup_summary">Allow JavaScript to open popups without user interaction</string>
+    <!-- Settings: block automatic redirects title -->
+    <string name="pref_block_redirects_title">Block automatic redirects</string>
+    <!-- Settings: block automatic redirects summary -->
+    <string name="pref_block_redirects_summary">Stop pages from sending you to another site unless you tap a link</string>
+    <!-- Settings: block popups title -->
+    <string name="pref_block_popups_title">Block pop-ups</string>
+    <!-- Settings: block popups summary -->
+    <string name="pref_block_popups_summary">Only open new tabs when you tap a link</string>
+    <!-- Settings: confirm external apps title -->
+    <string name="pref_confirm_external_apps_title">Confirm external apps</string>
+    <!-- Settings: confirm external apps summary -->
+    <string name="pref_confirm_external_apps_summary">Ask before a link opens another app</string>
+    <!-- Settings: block URL schemes title -->
+    <string name="pref_block_url_schemes_title">Block app links from pages</string>
+    <!-- Settings: block URL schemes summary -->
+    <string name="pref_block_url_schemes_summary">Stop pages from opening apps or the app store unless you tap a link</string>
+    <!-- Dialog shown before a link opens another app -->
+    <string name="external_app_dialog_title">Open another app?</string>
+    <!-- Dialog shown before a link opens another app. %1$s is the website's host name -->
+    <string name="external_app_dialog_message">%1$s wants to open another app.</string>
+    <!-- Dialog action that opens the other app -->
+    <string name="external_app_dialog_open">Open app</string>
+    <!-- Dialog action that keeps the link in the browser -->
+    <string name="external_app_dialog_stay">Stay here</string>
+    <!-- Snackbar shown when a page tried to open another app -->
+    <string name="navigation_guard_app_blocked">Blocked this page from opening an app</string>
+    <!-- Snackbar shown when a page tried to redirect to another site -->
+    <string name="navigation_guard_redirect_blocked">Blocked a redirect to another site</string>
+    <!-- Snackbar shown when a page tried to open a new tab -->
+    <string name="navigation_guard_popup_blocked">Blocked a pop-up</string>
+    <!-- Snackbar action that lets through what was blocked -->
+    <string name="navigation_guard_allow">Allow</string>
     <!-- Settings: javascript preference title -->
     <string name="pref_js_title">JavaScript</string>
     <!-- Settings: javascript preference summary -->

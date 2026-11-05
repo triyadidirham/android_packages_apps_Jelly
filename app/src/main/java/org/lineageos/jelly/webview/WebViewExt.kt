@@ -9,6 +9,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
@@ -51,9 +52,40 @@ class WebViewExt @JvmOverloads constructor(
 
     private val sharedPreferencesExt by lazy { SharedPreferencesExt(context) }
 
+    private var lastUserNavigationAt: Long? = null
+
+    /** Whether the page has just been asked for by the user, so it may still be redirecting. */
+    val hasRecentUserNavigation: Boolean
+        get() = lastUserNavigationAt?.let {
+            SystemClock.elapsedRealtime() - it < USER_NAVIGATION_GRACE_MS
+        } ?: false
+
     override fun loadUrl(url: String) {
         lastLoadedUrl = url
+        markUserNavigation()
         followUrl(url)
+    }
+
+    override fun reload() {
+        markUserNavigation()
+        super.reload()
+    }
+
+    fun markUserNavigation() {
+        lastUserNavigationAt = SystemClock.elapsedRealtime()
+    }
+
+    /** Whether the last touch landed on a link, rather than on a layer drawn by the page. */
+    fun lastTouchWasOnLink(targetUrl: String? = null) = hitTestResult.let {
+        when (it.type) {
+            HitTestResult.SRC_ANCHOR_TYPE -> targetUrl == null || it.extra == targetUrl
+            HitTestResult.SRC_IMAGE_ANCHOR_TYPE,
+            HitTestResult.PHONE_TYPE,
+            HitTestResult.EMAIL_TYPE,
+            HitTestResult.GEO_TYPE -> true
+
+            else -> false
+        }
     }
 
     override fun onWindowVisibilityChanged(visibility: Int) {
@@ -216,6 +248,7 @@ class WebViewExt @JvmOverloads constructor(
         private const val DESKTOP_USER_AGENT_FALLBACK =
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         private const val HEADER_DNT = "DNT"
+        private const val USER_NAVIGATION_GRACE_MS = 10_000L
 
         fun newInstance(
             context: Context,

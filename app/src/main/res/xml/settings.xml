@@ -77,6 +77,34 @@
         <SwitchPreference
             app:defaultValue="1"
             app:iconSpaceReserved="false"
+            app:key="key_block_redirects"
+            app:summary="@string/pref_block_redirects_summary"
+            app:title="@string/pref_block_redirects_title" />
+
+        <SwitchPreference
+            app:defaultValue="1"
+            app:iconSpaceReserved="false"
+            app:key="key_block_popups"
+            app:summary="@string/pref_block_popups_summary"
+            app:title="@string/pref_block_popups_title" />
+
+        <SwitchPreference
+            app:defaultValue="1"
+            app:iconSpaceReserved="false"
+            app:key="key_confirm_external_apps"
+            app:summary="@string/pref_confirm_external_apps_summary"
+            app:title="@string/pref_confirm_external_apps_title" />
+
+        <SwitchPreference
+            app:defaultValue="1"
+            app:iconSpaceReserved="false"
+            app:key="key_block_url_schemes"
+            app:summary="@string/pref_block_url_schemes_summary"
+            app:title="@string/pref_block_url_schemes_title" />
+
+        <SwitchPreference
+            app:defaultValue="1"
+            app:iconSpaceReserved="false"
             app:key="key_javascript"
             app:summary="@string/pref_js_summary"
             app:title="@string/pref_js_title" />

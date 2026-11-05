@@ -65,6 +65,22 @@ class SharedPreferencesExt(context: Context) {
             DYNAMIC_POPUP_ENABLED_KEY, DYNAMIC_POPUP_ENABLED_DEFAULT
         )
 
+    val blockRedirectsEnabled: Boolean
+        get() = sharedPreferences.getBoolean(BLOCK_REDIRECTS_ENABLED_KEY, BLOCK_REDIRECTS_ENABLED_DEFAULT)
+
+    val blockPopupsEnabled: Boolean
+        get() = sharedPreferences.getBoolean(BLOCK_POPUPS_ENABLED_KEY, BLOCK_POPUPS_ENABLED_DEFAULT)
+
+    val confirmExternalAppsEnabled: Boolean
+        get() = sharedPreferences.getBoolean(
+            CONFIRM_EXTERNAL_APPS_ENABLED_KEY, CONFIRM_EXTERNAL_APPS_ENABLED_DEFAULT
+        )
+
+    val blockUrlSchemesEnabled: Boolean
+        get() = sharedPreferences.getBoolean(
+            BLOCK_URL_SCHEMES_ENABLED_KEY, BLOCK_URL_SCHEMES_ENABLED_DEFAULT
+        )
+
     val javascriptEnabled: Boolean
         get() = sharedPreferences.getBoolean(JAVASCRIPT_ENABLED_KEY, JAVASCRIPT_ENABLED_DEFAULT)
 
@@ -108,6 +124,18 @@ class SharedPreferencesExt(context: Context) {
 
         private const val DYNAMIC_POPUP_ENABLED_KEY = "key_dynamic_popup"
         private const val DYNAMIC_POPUP_ENABLED_DEFAULT = false
+
+        private const val BLOCK_REDIRECTS_ENABLED_KEY = "key_block_redirects"
+        private const val BLOCK_REDIRECTS_ENABLED_DEFAULT = true
+
+        private const val BLOCK_POPUPS_ENABLED_KEY = "key_block_popups"
+        private const val BLOCK_POPUPS_ENABLED_DEFAULT = true
+
+        private const val CONFIRM_EXTERNAL_APPS_ENABLED_KEY = "key_confirm_external_apps"
+        private const val CONFIRM_EXTERNAL_APPS_ENABLED_DEFAULT = true
+
+        private const val BLOCK_URL_SCHEMES_ENABLED_KEY = "key_block_url_schemes"
+        private const val BLOCK_URL_SCHEMES_ENABLED_DEFAULT = true
 
         private const val JAVASCRIPT_ENABLED_KEY = "key_javascript"
         private const val JAVASCRIPT_ENABLED_DEFAULT = true
